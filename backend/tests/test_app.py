@@ -157,6 +157,18 @@ def test_cors_preflight_allows_deployed_frontend_origin(path, method):
     assert "content-type" in response.headers["access-control-allow-headers"]
 
 
+def test_list_documents_with_deployed_origin_returns_cors_header():
+    response = client.get(
+        "/documents",
+        headers={"Origin": "https://docu-mind-ai-phi.vercel.app"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == (
+        "https://docu-mind-ai-phi.vercel.app"
+    )
+
+
 def test_pdf_upload_with_deployed_origin_returns_cors_header():
     response = client.post(
         "/documents/upload",
