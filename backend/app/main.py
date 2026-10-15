@@ -42,7 +42,7 @@ INSUFFICIENT_EVIDENCE_ANSWER = (
     "The uploaded documents do not contain enough information to answer that question with evidence."
 )
 
-app = FastAPI(title="DocuMind AI", version="1.0.0")
+fastapi_app = FastAPI(title="DocuMind AI", version="1.0.0")
 DEFAULT_FRONTEND_ORIGINS = (
     "https://docu-mind-ai-phi.vercel.app",
     "http://localhost:5173",
@@ -62,14 +62,6 @@ def _parse_frontend_origins(configured_origins: str | None) -> list[str]:
 
 
 frontend_origins = _parse_frontend_origins(os.getenv("FRONTEND_ORIGINS"))
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=frontend_origins,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 search_engine = SemanticSearchEngine()
 document_store: dict[str, dict[str, Any]] = {}
@@ -286,7 +278,7 @@ def _seed_sample_document() -> None:
     _sample_document_seeded = True
 
 
-@app.get("/health")
+@fastapi_app.get("/health")
 def health_check() -> dict[str, Any]:
     return {
         "status": "ok",
@@ -296,14 +288,14 @@ def health_check() -> dict[str, Any]:
     }
 
 
-@app.get("/documents", response_model=DocumentListResponse)
+@fastapi_app.get("/documents", response_model=DocumentListResponse)
 def list_documents() -> DocumentListResponse:
     _seed_default_documents()
     documents = [item["document"] for item in document_store.values()]
     return DocumentListResponse(documents=documents)
 
 
-@app.post("/documents/upload", response_model=UploadResponse)
+@fastapi_app.post("/documents/upload", response_model=UploadResponse)
 async def upload_document(
     file: UploadFile = File(...),
     chunk_size: int = Form(DEFAULT_CHUNK_SIZE),
@@ -366,7 +358,7 @@ async def upload_document(
     return UploadResponse(**document.model_dump(), duplicate=False)
 
 
-@app.delete("/documents/{document_id}", response_model=DeleteResponse)
+@fastapi_app.delete("/documents/{document_id}", response_model=DeleteResponse)
 def delete_document(document_id: str) -> DeleteResponse:
     if document_id not in document_store:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -374,7 +366,7 @@ def delete_document(document_id: str) -> DeleteResponse:
     return DeleteResponse(document_id=document_id, deleted=True)
 
 
-@app.post("/search", response_model=SearchResponse)
+@fastapi_app.post("/search", response_model=SearchResponse)
 async def search_documents(request: SearchRequest) -> SearchResponse:
     query_text = request.query.strip()
     _seed_default_documents()
@@ -385,9 +377,18 @@ async def search_documents(request: SearchRequest) -> SearchResponse:
     return SearchResponse(query=query_text, results=results, total_results=len(results))
 
 
-@app.post("/ask", response_model=AskResponse)
+@fastapi_app.post("/ask", response_model=AskResponse)
 async def answer_question(request: AskRequest) -> AskResponse:
     query_text = request.query.strip()
     _seed_default_documents()
     evidence = _build_search_results(query_text, request.top_k)
     return _grounded_answer(query_text, evidence)
+
+
+app = CORSMiddleware(
+    app=fastapi_app,
+    allow_origins=frontend_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

@@ -104,17 +104,14 @@ def test_sample_document_is_seeded_once_on_demand(monkeypatch):
 
 
 def test_cors_defaults_to_explicit_origins_without_credentials():
-    cors_middleware = next(
-        middleware for middleware in app.user_middleware
-        if middleware.cls is CORSMiddleware
-    )
-
-    assert cors_middleware.kwargs["allow_origins"] == [
+    assert app.allow_origins == [
         "https://docu-mind-ai-phi.vercel.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
-    assert cors_middleware.kwargs["allow_credentials"] is False
+    assert app.allow_credentials is False
+    assert app.app is main.fastapi_app
+    assert main.fastapi_app.routes
 
 
 def test_cors_env_origins_extend_required_and_local_origins():
@@ -158,6 +155,64 @@ def test_cors_preflight_allows_deployed_frontend_origin(path, method):
     )
     assert method in response.headers["access-control-allow-methods"]
     assert "content-type" in response.headers["access-control-allow-headers"]
+
+
+def test_pdf_upload_with_deployed_origin_returns_cors_header():
+    response = client.post(
+        "/documents/upload",
+        headers={"Origin": "https://docu-mind-ai-phi.vercel.app"},
+        files={
+            "file": (
+                "cors-check.pdf",
+                _make_pdf_bytes("Semantic search retrieves relevant evidence."),
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == (
+        "https://docu-mind-ai-phi.vercel.app"
+    )
+    assert response.json()["document_name"] == "cors-check.pdf"
+
+
+def test_upload_validation_error_with_deployed_origin_returns_cors_header():
+    response = client.post(
+        "/documents/upload",
+        headers={"Origin": "https://docu-mind-ai-phi.vercel.app"},
+        files={"file": ("invalid.pdf", b"not a PDF", "application/pdf")},
+    )
+
+    assert response.status_code == 400
+    assert response.headers["access-control-allow-origin"] == (
+        "https://docu-mind-ai-phi.vercel.app"
+    )
+    assert response.json()["detail"]
+
+
+def test_upload_application_exception_includes_cors_header(monkeypatch):
+    def fail_embedding(texts: list[str]) -> np.ndarray:
+        raise RuntimeError("Embedding failed during upload.")
+
+    monkeypatch.setattr(search_engine, "embed", fail_embedding)
+    error_client = TestClient(app, raise_server_exceptions=False)
+    response = error_client.post(
+        "/documents/upload",
+        headers={"Origin": "https://docu-mind-ai-phi.vercel.app"},
+        files={
+            "file": (
+                "error.pdf",
+                _make_pdf_bytes("Semantic search retrieves relevant evidence."),
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == (
+        "https://docu-mind-ai-phi.vercel.app"
+    )
 
 
 def test_upload_rejects_content_over_configured_limit(monkeypatch):
