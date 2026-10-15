@@ -5,6 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from uuid import uuid4
 
@@ -63,6 +64,8 @@ app.add_middleware(
 
 search_engine = SemanticSearchEngine()
 document_store: dict[str, dict[str, Any]] = {}
+_sample_document_seeded = False
+_sample_document_seed_lock = Lock()
 
 
 def _all_chunks() -> list[Chunk]:
@@ -213,21 +216,34 @@ def _grounded_answer(query_text: str, evidence: list[SearchResult]) -> AskRespon
 
 
 def _seed_default_documents() -> None:
+    with _sample_document_seed_lock:
+        _seed_sample_document()
+
+
+def _seed_sample_document() -> None:
+    global _sample_document_seeded
+    if _sample_document_seeded:
+        return
+
     sample_path = Path(__file__).resolve().parents[2] / "sample_research.pdf"
     if not sample_path.exists():
+        _sample_document_seeded = True
         return
 
     if any(item["document"].document_name == sample_path.name for item in document_store.values()):
+        _sample_document_seeded = True
         return
 
     try:
         file_bytes = sample_path.read_bytes()
         pages = extract_pdf_text(file_bytes, sample_path.name)
     except ValueError:
+        _sample_document_seeded = True
         return
 
     fingerprint = _document_fingerprint(pages)
     if any(item.get("fingerprint") == fingerprint for item in document_store.values()):
+        _sample_document_seeded = True
         return
 
     document_id = str(uuid4())
@@ -258,14 +274,7 @@ def _seed_default_documents() -> None:
         "chunks": chunks,
         "fingerprint": fingerprint,
     }
-
-
-_seed_default_documents()
-
-
-@app.on_event("startup")
-async def startup_event() -> None:
-    _seed_default_documents()
+    _sample_document_seeded = True
 
 
 @app.get("/health")
@@ -274,11 +283,13 @@ def health_check() -> dict[str, Any]:
         "status": "ok",
         "documents": len(document_store),
         "model": "sentence-transformers/all-MiniLM-L6-v2",
+        "model_loaded": search_engine.is_loaded,
     }
 
 
 @app.get("/documents", response_model=DocumentListResponse)
 def list_documents() -> DocumentListResponse:
+    _seed_default_documents()
     documents = [item["document"] for item in document_store.values()]
     return DocumentListResponse(documents=documents)
 
@@ -357,6 +368,7 @@ def delete_document(document_id: str) -> DeleteResponse:
 @app.post("/search", response_model=SearchResponse)
 async def search_documents(request: SearchRequest) -> SearchResponse:
     query_text = request.query.strip()
+    _seed_default_documents()
     if not document_store:
         return SearchResponse(query=query_text, results=[], total_results=0)
 
@@ -367,5 +379,6 @@ async def search_documents(request: SearchRequest) -> SearchResponse:
 @app.post("/ask", response_model=AskResponse)
 async def answer_question(request: AskRequest) -> AskResponse:
     query_text = request.query.strip()
+    _seed_default_documents()
     evidence = _build_search_results(query_text, request.top_k)
     return _grounded_answer(query_text, evidence)

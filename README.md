@@ -109,7 +109,7 @@ This script reports a simple Recall@K-style result based on the sample document 
 
 ### Model download stalls or fails
 
-- The app loads sentence-transformers/all-MiniLM-L6-v2 on first use
+- The app loads the CPU-only sentence-transformers/all-MiniLM-L6-v2 model on first document/search use, not during server import
 - This may require internet access and a small amount of disk space
 - If the download is blocked, the app will fail honestly instead of hiding the issue
 

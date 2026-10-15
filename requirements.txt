@@ -1,8 +1,12 @@
-fastapi
-uvicorn[standard]
-python-multipart
-pymupdf
-sentence-transformers
-numpy
-pytest
-httpx
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+pymupdf==1.28.2
+numpy==2.5.4
+torch==2.14.1+cpu
+sentence-transformers==6.1.0
+transformers==5.19.0
+pytest==9.1.1
+httpx==0.28.1

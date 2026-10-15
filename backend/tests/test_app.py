@@ -13,6 +13,7 @@ from backend.app import main
 from backend.app.main import app, document_store, search_engine
 from backend.app.chunker import chunk_text
 from backend.app.pdf_processor import extract_pdf_text
+from backend.app.semantic_search import SemanticSearchEngine
 
 
 client = TestClient(app)
@@ -58,6 +59,7 @@ def _upload_sample_pdf_with_model_embeddings(monkeypatch):
 def isolate_document_store(monkeypatch):
     existing_documents = dict(document_store)
     document_store.clear()
+    monkeypatch.setattr(main, "_sample_document_seeded", True)
 
     def embed(texts: list[str]) -> np.ndarray:
         embeddings = np.zeros((len(texts), 4096), dtype=np.float32)
@@ -79,6 +81,26 @@ def test_health_check():
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_semantic_search_engine_loads_model_lazily():
+    engine = SemanticSearchEngine()
+
+    assert engine.is_loaded is False
+
+
+def test_sample_document_is_seeded_once_on_demand(monkeypatch):
+    monkeypatch.setattr(main, "_sample_document_seeded", False)
+
+    main._seed_default_documents()
+    first_document_count = len(document_store)
+    main._seed_default_documents()
+
+    assert first_document_count == 1
+    assert len(document_store) == 1
+    sample = next(iter(document_store.values()))
+    assert sample["document"].document_name == "sample_research.pdf"
+    assert all(chunk.embedding is not None for chunk in sample["chunks"])
 
 
 def test_cors_allows_only_explicit_local_origins_without_credentials():
