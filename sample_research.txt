@@ -1,0 +1,12 @@
+DocuMind AI - Sample Research Document
+
+Page topic: Artificial Intelligence
+
+Artificial Intelligence enables computers to perform tasks
+that normally require human intelligence.
+
+Natural Language Processing helps computers process and
+analyze human language.
+
+Semantic search identifies relevant information based
+on meaning rather than exact keyword matches.
