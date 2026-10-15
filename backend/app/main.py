@@ -43,16 +43,25 @@ INSUFFICIENT_EVIDENCE_ANSWER = (
 )
 
 app = FastAPI(title="DocuMind AI", version="1.0.0")
-frontend_origins = [
-    origin.strip().rstrip("/")
-    for origin in os.getenv(
-        "FRONTEND_ORIGINS",
-        "https://docu-mind-ai-phi.vercel.app,http://localhost:5173,http://127.0.0.1:5173",
-    ).split(",")
-    if origin.strip()
-]
-if "*" in frontend_origins:
-    raise ValueError("FRONTEND_ORIGINS must contain explicit origins; '*' is not allowed.")
+DEFAULT_FRONTEND_ORIGINS = (
+    "https://docu-mind-ai-phi.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+)
+
+
+def _parse_frontend_origins(configured_origins: str | None) -> list[str]:
+    origins = list(DEFAULT_FRONTEND_ORIGINS)
+    for configured_origin in (configured_origins or "").split(","):
+        origin = configured_origin.strip().rstrip("/")
+        if origin and origin not in origins:
+            origins.append(origin)
+    if "*" in origins:
+        raise ValueError("FRONTEND_ORIGINS must contain explicit origins; '*' is not allowed.")
+    return origins
+
+
+frontend_origins = _parse_frontend_origins(os.getenv("FRONTEND_ORIGINS"))
 
 app.add_middleware(
     CORSMiddleware,

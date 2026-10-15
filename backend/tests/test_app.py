@@ -117,12 +117,37 @@ def test_cors_defaults_to_explicit_origins_without_credentials():
     assert cors_middleware.kwargs["allow_credentials"] is False
 
 
-def test_cors_preflight_allows_deployed_frontend_origin():
+def test_cors_env_origins_extend_required_and_local_origins():
+    origins = main._parse_frontend_origins(
+        "https://preview.example.com, http://localhost:5173/"
+    )
+
+    assert origins == [
+        "https://docu-mind-ai-phi.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://preview.example.com",
+    ]
+
+
+def test_cors_env_rejects_wildcard_origin():
+    with pytest.raises(ValueError, match="explicit origins"):
+        main._parse_frontend_origins("*")
+
+
+@pytest.mark.parametrize(
+    ("path", "method"),
+    [
+        ("/documents", "GET"),
+        ("/documents/upload", "POST"),
+    ],
+)
+def test_cors_preflight_allows_deployed_frontend_origin(path, method):
     response = client.options(
-        "/documents",
+        path,
         headers={
             "Origin": "https://docu-mind-ai-phi.vercel.app",
-            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Method": method,
             "Access-Control-Request-Headers": "content-type",
         },
     )
@@ -131,6 +156,8 @@ def test_cors_preflight_allows_deployed_frontend_origin():
     assert response.headers["access-control-allow-origin"] == (
         "https://docu-mind-ai-phi.vercel.app"
     )
+    assert method in response.headers["access-control-allow-methods"]
+    assert "content-type" in response.headers["access-control-allow-headers"]
 
 
 def test_upload_rejects_content_over_configured_limit(monkeypatch):
