@@ -47,7 +47,7 @@ frontend_origins = [
     origin.strip().rstrip("/")
     for origin in os.getenv(
         "FRONTEND_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
+        "https://docu-mind-ai-phi.vercel.app,http://localhost:5173,http://127.0.0.1:5173",
     ).split(",")
     if origin.strip()
 ]

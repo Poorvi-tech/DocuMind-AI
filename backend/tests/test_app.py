@@ -103,17 +103,34 @@ def test_sample_document_is_seeded_once_on_demand(monkeypatch):
     assert all(chunk.embedding is not None for chunk in sample["chunks"])
 
 
-def test_cors_allows_only_explicit_local_origins_without_credentials():
+def test_cors_defaults_to_explicit_origins_without_credentials():
     cors_middleware = next(
         middleware for middleware in app.user_middleware
         if middleware.cls is CORSMiddleware
     )
 
     assert cors_middleware.kwargs["allow_origins"] == [
+        "https://docu-mind-ai-phi.vercel.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
     assert cors_middleware.kwargs["allow_credentials"] is False
+
+
+def test_cors_preflight_allows_deployed_frontend_origin():
+    response = client.options(
+        "/documents",
+        headers={
+            "Origin": "https://docu-mind-ai-phi.vercel.app",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == (
+        "https://docu-mind-ai-phi.vercel.app"
+    )
 
 
 def test_upload_rejects_content_over_configured_limit(monkeypatch):

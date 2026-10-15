@@ -22,30 +22,31 @@ Set these service environment variables:
 | Key | Value |
 | --- | --- |
 | `PYTHON_VERSION` | `3.13.3` |
-| `FRONTEND_ORIGINS` | `https://<your-frontend-service>.onrender.com` |
+| `FRONTEND_ORIGINS` | `https://docu-mind-ai-phi.vercel.app` |
 | `MAX_FILE_SIZE_MB` | `15` |
 
 Render supplies `PORT` to the web service. Do not set a fixed production port; Uvicorn binds to `0.0.0.0` and uses `$PORT`. The `.python-version` file also pins Python to 3.13.3. This matches the local interpreter used for project tests; the application has not been tested on Render's Linux runtime.
 
-The CORS variable must contain the exact deployed frontend origin, including `https://` and without a path or trailing slash. For multiple trusted frontends, use a comma-separated list of explicit origins. The backend rejects `*`, and CORS credentials are disabled.
+The CORS variable must contain the exact deployed frontend origin, including `https://` and without a path or trailing slash. For multiple trusted frontends, use a comma-separated list of explicit origins. The backend rejects `*`, and CORS credentials are disabled. If `FRONTEND_ORIGINS` is unset, the backend's explicit defaults include the deployed Vercel origin and the two local development origins.
 
-## Frontend: Render Static Site
+## Frontend: Vercel
 
-Create a Static Site from the same repository:
+Import the repository into Vercel and set the project root to `frontend`:
 
 | Setting | Value |
 | --- | --- |
+| Framework Preset | Vite |
 | Root Directory | `frontend` |
-| Build Command | `npm ci && npm run build` |
-| Publish Directory | `dist` |
+| Build Command | `npm run build` (or leave Vercel's detected Vite command) |
+| Output Directory | `dist` |
 
-Set this environment variable before the first build:
+Set this environment variable for Production (and Preview too if preview deployments should access the backend):
 
 | Key | Value |
 | --- | --- |
-| `VITE_API_BASE_URL` | `https://<your-backend-service>.onrender.com` |
+| `VITE_API_BASE_URL` | `https://documind-ai-jx13.onrender.com` |
 
-Use the backend's origin only: do not append `/api`. Vite injects `VITE_` variables at build time, so changing this value requires a new static-site build/deploy. After creating both services, set `FRONTEND_ORIGINS` on the backend to the actual static-site origin and redeploy the backend.
+The checked-in `frontend/.env.production` sets this same public backend origin for Vite production builds. The URL is not a secret; do not put credentials or API keys in any `VITE_` variable. Use the backend's origin only: do not append `/api`. Vite injects `VITE_` variables at build time, so changing the Vercel value requires a new frontend build/deployment. After setting `FRONTEND_ORIGINS` on Render, redeploy the backend too.
 
 ## Runtime, model, and upload notes
 
