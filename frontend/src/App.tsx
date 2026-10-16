@@ -44,20 +44,30 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error('The backend took too long to respond. It may be starting up; wait a moment and retry.')
+      throw new Error('The request timed out after 120 seconds. The backend may be starting or processing the PDF; retry shortly.')
     }
-    throw new Error('Could not reach the backend. It may be starting up; wait a moment and retry.')
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('The request was cancelled before the backend responded.')
+    }
+    if (error instanceof TypeError) {
+      throw new Error('The browser could not complete the backend request. Check your connection; if the backend is online, verify that this site origin is allowed by backend CORS.')
+    }
+    throw new Error(`The request could not be completed: ${error instanceof Error ? error.message : 'Unknown error.'}`)
   }
 
   if (!response.ok) {
-    let detail = 'Request failed.'
+    let detail = ''
     try {
-      const payload = await response.json()
-      detail = payload.detail ?? detail
+      const payload: unknown = await response.clone().json()
+      if (typeof payload === 'object' && payload !== null && 'detail' in payload) {
+        const responseDetail = payload.detail
+        detail = typeof responseDetail === 'string' ? responseDetail : JSON.stringify(responseDetail)
+      }
     } catch {
-      detail = response.statusText || detail
+      detail = (await response.text()).trim()
     }
-    throw new Error(detail)
+    detail ||= response.statusText || 'No error details returned.'
+    throw new Error(`Backend returned HTTP ${response.status}: ${detail}`)
   }
 
   return (await response.json()) as T
@@ -145,7 +155,19 @@ function App() {
       if (fileInput) {
         fileInput.value = ''
       }
-      await loadDocuments()
+      try {
+        await loadDocuments()
+      } catch (error) {
+        setNoticeMessage(
+          response.duplicate
+            ? `${response.document_name} is already in the library.`
+            : `${response.document_name} was uploaded and indexed.`,
+        )
+        setErrorMessage(
+          `Upload succeeded, but the document list could not be refreshed: ${error instanceof Error ? error.message : 'Unknown error.'}`,
+        )
+        return
+      }
       setNoticeMessage(
         response.duplicate
           ? `${response.document_name} is already in the library.`
